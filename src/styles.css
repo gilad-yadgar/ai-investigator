@@ -1,0 +1,98 @@
+body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  font-family: 'Arial', sans-serif;
+  overflow: hidden;
+}
+
+#game {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+/* UI Overlay Styles for DOM elements */
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  font-family: Arial, sans-serif;
+}
+
+.dialog-box {
+  background: #2c3e50;
+  border: 2px solid #4a90e2;
+  border-radius: 10px;
+  padding: 30px;
+  text-align: center;
+  color: white;
+  min-width: 400px;
+  max-width: 600px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-box h3 {
+  margin-top: 0;
+  color: #4a90e2;
+  font-size: 24px;
+}
+
+.dialog-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 2px solid #4a90e2;
+  border-radius: 5px;
+  background: #34495e;
+  color: white;
+  margin: 20px 0;
+  box-sizing: border-box;
+}
+
+.dialog-input:focus {
+  outline: none;
+  border-color: #66ccff;
+  background: #3a5169;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.dialog-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.dialog-button.primary {
+  background: #4a90e2;
+  color: white;
+}
+
+.dialog-button.primary:hover {
+  background: #66ccff;
+}
+
+.dialog-button.secondary {
+  background: #888888;
+  color: white;
+}
+
+.dialog-button.secondary:hover {
+  background: #aaaaaa;
+}
