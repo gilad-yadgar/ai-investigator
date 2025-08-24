@@ -1,4 +1,4 @@
-import { OllamaRequest, OllamaResponse } from '../types/DialogTypes';
+import { OllamaRequest, OllamaResponse, OllamaStreamResponse } from '../types/DialogTypes';
 
 export class OllamaService {
   private readonly baseUrl: string = 'http://localhost:11434/api/generate';
@@ -52,6 +52,101 @@ export class OllamaService {
       }
       
       return `[Error: ${error instanceof Error ? error.message : 'Unknown error'}] I don't understand the question.`;
+    }
+  }
+
+  async generateStreamingResponse(
+    prompt: string, 
+    onChunk: (chunk: string) => void,
+    onComplete: (fullResponse: string) => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    console.log(`[OllamaService] Generating streaming response for: ${prompt.substring(0, 50)}...`);
+
+    const fullPrompt = this.buildPrompt(prompt);
+    const request: OllamaRequest = {
+      model: this.model,
+      prompt: fullPrompt,
+      stream: true,
+      options: {
+        temperature: 0.7,
+        max_tokens: 150
+      }
+    };
+
+    try {
+      console.log('[OllamaService] Making streaming request to Ollama...');
+      
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request)
+      });
+
+      console.log(`[OllamaService] Streaming response status: ${response.status}`);
+
+      if (!response.ok) {
+        console.error('[OllamaService] Bad streaming response status:', response.status);
+        onError("I'm not feeling well... can we continue this later?");
+        return;
+      }
+
+      if (!response.body) {
+        console.error('[OllamaService] No response body for streaming');
+        onError("I... I don't know what to say.");
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('[OllamaService] Streaming complete');
+            onComplete(fullResponse);
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            try {
+              const streamResponse: OllamaStreamResponse = JSON.parse(line);
+              
+              if (streamResponse.response) {
+                fullResponse += streamResponse.response;
+                onChunk(streamResponse.response);
+              }
+
+              if (streamResponse.done) {
+                console.log('[OllamaService] Stream done, full response:', fullResponse.substring(0, 50));
+                onComplete(fullResponse);
+                return;
+              }
+            } catch (parseError) {
+              console.warn('[OllamaService] Failed to parse stream chunk:', line);
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+    } catch (error) {
+      console.error('[OllamaService] Streaming error:', error);
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        onError("[Ollama not available - using fallback] I... I need a lawyer.");
+      } else {
+        onError(`[Error: ${error instanceof Error ? error.message : 'Unknown error'}] I don't understand the question.`);
+      }
     }
   }
 

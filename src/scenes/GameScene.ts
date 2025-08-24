@@ -1,13 +1,11 @@
 import { ConversationEntry, DialogSceneData, GameState } from '../types/DialogTypes';
 import { OllamaService } from '../services/OllamaService';
 import { ConversationDisplay } from '../objects/ConversationDisplay';
-import { InputDialog } from '../objects/InputDialog';
 
 export class GameScene extends Phaser.Scene {
   private gameState!: GameState;
   private ollamaService!: OllamaService;
   private conversationDisplay!: ConversationDisplay;
-  private inputDialog!: InputDialog;
   private conversationTurn: number = 0;
 
   constructor() {
@@ -83,15 +81,11 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-
-
     // Create UI components - position dialogue box at bottom like visual novel
     this.conversationDisplay = new ConversationDisplay(this, 50, this.cameras.main.height - 220);
-    this.inputDialog = new InputDialog(this);
 
-    // Set up input dialog callbacks
-    this.inputDialog.onSubmit = (text: string) => this.handlePlayerInput(text);
-    this.inputDialog.onCancel = () => this.showMainMenu();
+    // Set up conversation display callbacks
+    this.conversationDisplay.onSubmit = (text: string) => this.handlePlayerInput(text);
 
     // Start with welcome message
     this.startConversation();
@@ -99,42 +93,20 @@ export class GameScene extends Phaser.Scene {
     // Add click handler for visual novel interaction (only after first exchange)
     this.input.on('pointerdown', () => {
       if (!this.gameState.isGenerating && this.conversationTurn >= 1) {
-        this.inputDialog.show();
+        this.conversationDisplay.showInput();
       }
     });
   }
 
-
-
   private async startConversation(): Promise<void> {
-    const welcomeMessage = `Good morning. I'm ${this.gameState.playerName}. I have a few questions for you.`;
+    // Start with suspect asking why they're here
+    const initialSuspectMessage = "Why am I here? What do you want from me?";
     
-    this.addToConversation('investigator', welcomeMessage);
+    this.addToConversation('suspect', initialSuspectMessage);
     
-    // Get initial AI response
-    await this.getAIResponse(welcomeMessage);
-    
-    // Automatically ask the first question to test Ollama
-    setTimeout(async () => {
-      const firstQuestion = "Where were you last night at 9 PM?";
-      this.addToConversation('investigator', firstQuestion);
-      await this.getAIResponse(firstQuestion);
-      
-      // After first question exchange, enable user input
-      this.conversationTurn = 1;
-      this.showUserInputPrompt();
-    }, 2000);
+    // Enable user input immediately - player can respond to suspect's question
+    this.conversationTurn = 1;
   }
-
-  private showUserInputPrompt(): void {
-    // Add a visual indicator that user can now ask questions
-    setTimeout(() => {
-      this.addToConversation('investigator', '[Click anywhere to ask your own question]');
-    }, 1000);
-  }
-
-
-
 
 
   private async handlePlayerInput(text: string): Promise<void> {
@@ -149,6 +121,8 @@ export class GameScene extends Phaser.Scene {
     
     // Increment conversation turn
     this.conversationTurn++;
+    
+    // Note: Input will be shown automatically when streaming completes
   }
 
   private async getAIResponse(prompt: string): Promise<void> {
@@ -159,12 +133,45 @@ export class GameScene extends Phaser.Scene {
     this.gameState.isGenerating = true;
 
     try {
-      const response = await this.ollamaService.generateResponse(prompt);
-      this.addToConversation('suspect', response);
+      // Create a streaming entry and display it immediately
+      const streamingEntry: ConversationEntry = {
+        speaker: 'suspect',
+        text: '',
+        timestamp: new Date(),
+        isStreaming: true
+      };
+
+      // Use streaming response
+      await this.ollamaService.generateStreamingResponse(
+        prompt,
+        (chunk: string) => {
+          // Update the streaming text as chunks arrive
+          if (this.conversationDisplay.streamingEntry?.speaker != 'suspect') {
+            this.conversationDisplay.addEntry(streamingEntry);
+            this.gameState.conversationHistory.push(streamingEntry);
+          }
+          this.conversationDisplay.updateStreamingText(chunk);
+        },
+        (fullResponse: string) => {
+          // Complete the streaming
+          streamingEntry.text = fullResponse;
+          streamingEntry.isStreaming = false;
+          this.conversationDisplay.completeStreaming();
+          this.gameState.isGenerating = false;
+          console.log(`[GameScene] Streaming complete: ${fullResponse.substring(0, 50)}...`);
+        },
+        (error: string) => {
+          // Handle error
+          streamingEntry.text = error;
+          streamingEntry.isStreaming = false;
+          this.conversationDisplay.completeStreaming();
+          this.gameState.isGenerating = false;
+          console.error('[GameScene] Streaming error:', error);
+        }
+      );
     } catch (error) {
       console.error('[GameScene] Error getting AI response:', error);
       this.addToConversation('suspect', '[Error] I need to speak with my lawyer.');
-    } finally {
       this.gameState.isGenerating = false;
     }
   }
@@ -181,8 +188,6 @@ export class GameScene extends Phaser.Scene {
 
     console.log(`[GameScene] Added conversation entry: ${speaker}: ${text.substring(0, 50)}...`);
   }
-
-
 
   private showMainMenu(): void {
     console.log('[GameScene] Returning to main menu');
