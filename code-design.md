@@ -39,11 +39,13 @@ The suspect text display system ensures that AI responses only appear after the 
 - Coordinates between UI and AI service
 - Handles user input processing
 - Maintains conversation history
+- Controls character emotion sprites
 
 **Key Methods**:
 - `handlePlayerInput()` - Processes user responses
 - `getAIResponse()` - Initiates AI streaming
 - `addToConversation()` - Adds completed messages
+- `updateCharacterEmotion()` - Changes character sprite based on emotion
 
 ### ConversationDisplay
 **Role**: UI manager and text renderer
@@ -63,14 +65,17 @@ The suspect text display system ensures that AI responses only appear after the 
 - Manages streaming responses from AI
 - Handles network errors and timeouts
 - Provides fallback responses
+- Parses emotion indicators from AI responses
 
 **Key Methods**:
 - `generateStreamingResponse()` - Streams AI responses with callbacks
+- `parseEmotionAndResponse()` - Extracts emotion and response text from AI output
 
 ### ConversationEntry
 **Role**: Data structure for messages
 - Defines message format and metadata
 - Contains streaming state flag
+- Includes emotion metadata for suspect responses
 
 ## State Flow Diagram
 
@@ -165,6 +170,34 @@ The suspect text display system ensures that AI responses only appear after the 
 └─────────────────────────────────────┘
 ```
 
+## Emotion System
+
+### Overview
+The emotion system enables dynamic character expression through sprite changes based on AI-determined emotional states.
+
+### Supported Emotions
+- **angry**: Hostile, frustrated, or confrontational responses
+- **scared**: Nervous, anxious, or intimidated responses  
+- **bored**: Disinterested, tired, or dismissive responses
+
+### Implementation Flow
+```
+AI Response → Parse First Line (Emotion) → Update Character Sprite → Store in History
+```
+
+### Response Format
+AI responses follow this simplified structure:
+```
+scared
+I don't know what you're talking about.
+```
+
+### Sprite Management
+- Emotion sprites loaded in `preload()`: `emo-angry.png`, `emo-scared.png`, `emo-bored.png`
+- Character sprite texture updated via `updateCharacterEmotion()`
+- Subtle animation accompanies emotion changes
+- Fallback to default sprite if emotion parsing fails
+
 ## Key Design Decisions
 
 ### 1. Streaming Entry Flag
@@ -176,6 +209,11 @@ The suspect text display system ensures that AI responses only appear after the 
 - **Decision**: Create message text only when first chunk arrives
 - **Rationale**: Prevents empty text boxes during waiting
 - **Impact**: User sees their own text while waiting
+
+### 3. Emotion Parsing Strategy
+- **Decision**: Use structured format (EMOTION: tag) instead of AI interpretation
+- **Rationale**: Ensures consistent, reliable emotion detection
+- **Impact**: Predictable sprite behavior, easier debugging
 
 
 ## Error Handling Strategy

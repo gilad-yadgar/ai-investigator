@@ -1,180 +1,260 @@
-import { OllamaRequest, OllamaResponse, OllamaStreamResponse } from '../types/DialogTypes';
+import ollama from 'ollama';
+import { OllamaRequest, OllamaResponse, OllamaStreamResponse, ConversationEntry, ChatMessage } from '../types/DialogTypes';
+import { suspectProfile } from '../characters/suspect';
 
 export class OllamaService {
-  private readonly baseUrl: string = 'http://localhost:11434/api/generate';
   private readonly model: string = 'gpt-oss:20b';
+  private conversationHistory: ConversationEntry[] = [];
 
   constructor() {
     console.log('[OllamaService] Initialized with model:', this.model);
+    console.log('[OllamaService] Suspect profile loaded');
   }
 
-  async generateResponse(prompt: string): Promise<string> {
-    console.log(`[OllamaService] Generating response for: ${prompt.substring(0, 50)}...`);
+  /**
+   * Add a message to the conversation history
+   */
+  addMessage(speaker: 'investigator' | 'suspect', text: string): void {
+    this.conversationHistory.push({
+      speaker,
+      text,
+      timestamp: new Date()
+    });
+    console.log(`[OllamaService] Added ${speaker} message to history:`, text);
+  }
 
-    const fullPrompt = this.buildPrompt(prompt);
-    const request: OllamaRequest = {
-      model: this.model,
-      prompt: fullPrompt,
-      stream: false,
-      options: {
-        temperature: 0.7,
-        max_tokens: 150
-      }
-    };
+  /**
+   * Clear the conversation history
+   */
+  clearHistory(): void {
+    this.conversationHistory = [];
+    console.log('[OllamaService] Conversation history cleared');
+  }
+
+  /**
+   * Get a copy of the current conversation history
+   */
+  getHistory(): ConversationEntry[] {
+    return [...this.conversationHistory];
+  }
+
+  /**
+   * Get the number of messages in history
+   */
+  getHistoryLength(): number {
+    return this.conversationHistory.length;
+  }
+
+  async generateResponse(prompt: string): Promise<{response: string, emotion?: 'angry' | 'scared' | 'bored'}> {
+    console.log(`[OllamaService] Generating non-streaming response for: ${prompt.substring(0, 50)}...`);
+
+    // Add the user's message to history
+    this.addMessage('investigator', prompt);
+
+    const messages = this.buildMessages(prompt);
 
     try {
       console.log('[OllamaService] Making request to Ollama...');
       
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request)
+      const response = await ollama.chat({
+        model: this.model,
+        messages: messages,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 300
+        }
       });
 
-      console.log(`[OllamaService] Response status: ${response.status}`);
-
-      if (response.ok) {
-        const result: OllamaResponse = await response.json();
-        const suspectResponse = result.response || "I... I don't know what to say.";
-        console.log(`[OllamaService] Got response: ${suspectResponse.substring(0, 50)}...`);
-        return suspectResponse;
-      } else {
-        console.error('[OllamaService] Bad response status:', response.status);
-        return "I'm not feeling well... can we continue this later?";
-      }
+      const fullResponse = response.message.content || '';
+      console.log(`[OllamaService] Response received: ${fullResponse}`);
+      
+      const parsed = this.parseEmotionAndResponse(fullResponse);
+      
+      // Add the suspect's response to history
+      this.addMessage('suspect', parsed.response);
+      return parsed;
+      
     } catch (error) {
-      console.error('[OllamaService] Error:', error);
-      
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        return "[Ollama not available - using fallback] I... I need a lawyer.";
-      }
-      
-      return `[Error: ${error instanceof Error ? error.message : 'Unknown error'}] I don't understand the question.`;
+      console.error('[OllamaService] Non-streaming error:', error);
+      throw error;
     }
   }
 
   async generateStreamingResponse(
     prompt: string, 
     onChunk: (chunk: string) => void,
-    onComplete: (fullResponse: string) => void,
+    onComplete: (fullResponse: string, emotion?: 'angry' | 'scared' | 'bored') => void,
     onError: (error: string) => void
   ): Promise<void> {
     console.log(`[OllamaService] Generating streaming response for: ${prompt.substring(0, 50)}...`);
 
-    const fullPrompt = this.buildPrompt(prompt);
-    const request: OllamaRequest = {
-      model: this.model,
-      prompt: fullPrompt,
-      stream: true,
-      options: {
-        temperature: 0.7,
-        max_tokens: 150
-      }
-    };
+    // Add the user's message to history
+    this.addMessage('investigator', prompt);
+
+    const messages = this.buildMessages(prompt);
 
     try {
       console.log('[OllamaService] Making streaming request to Ollama...');
       
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request)
+      let fullResponse = '';
+      let bufferedResponse = '';
+      let emotionParsed = false;
+      let detectedEmotion: 'angry' | 'scared' | 'bored' | undefined = undefined;
+      let sentResponseChars = 0; // Track how much response text we've already sent
+      
+      const response = await ollama.chat({
+        model: this.model,
+        messages: messages,
+        stream: true,
+        options: {
+          temperature: 0.7,
+          num_predict: 250 // equivalent to max_tokens
+        }
       });
 
-      console.log(`[OllamaService] Streaming response status: ${response.status}`);
-
-      if (!response.ok) {
-        console.error('[OllamaService] Bad streaming response status:', response.status);
-        onError("I'm not feeling well... can we continue this later?");
-        return;
-      }
-
-      if (!response.body) {
-        console.error('[OllamaService] No response body for streaming');
-        onError("I... I don't know what to say.");
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullResponse = '';
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            console.log('[OllamaService] Streaming complete');
-            onComplete(fullResponse);
-            break;
-          }
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-          for (const line of lines) {
-            try {
-              const streamResponse: OllamaStreamResponse = JSON.parse(line);
+      console.log('[OllamaService] Starting to process stream...');
+      let thinking = '';
+      for await (const part of response) {
+        
+        // Log thinking process for debugging (but don't send to user)
+        if (part.message.thinking) {
+          thinking += part.message.thinking;
+        }
+        else {
+          console.log('[OllamaService] Raw part:', JSON.stringify(part, null, 2));
+          const chunk = part.message.content || '';
+          // Debug: Log what we're extracting
+          console.log('[OllamaService] Extracted chunk:', JSON.stringify(chunk));
+          if (chunk) {
+            fullResponse += chunk;
+            bufferedResponse += chunk;
+            
+            // Try to parse emotion from buffered response
+            if (!emotionParsed && bufferedResponse.includes('\n')) {
+              const lines = bufferedResponse.split('\n').map(line => line.trim()).filter(line => line.length > 0);
               
-              if (streamResponse.response) {
-                fullResponse += streamResponse.response;
-                onChunk(streamResponse.response);
+              if (lines.length >= 1) {
+                const firstLine = lines[0].toLowerCase();
+                if (firstLine === 'angry' || firstLine === 'scared' || firstLine === 'bored') {
+                  detectedEmotion = firstLine as 'angry' | 'scared' | 'bored';
+                  emotionParsed = true;
+                  console.log('[OllamaService] Detected emotion during streaming:', detectedEmotion);
+                  
+                  // Get all response text after the first line
+                  const responseText = bufferedResponse.substring(bufferedResponse.indexOf('\n') + 1);
+                  
+                  // Send any new response text that we haven't sent yet
+                  const newResponseText = responseText.substring(sentResponseChars);
+                  if (newResponseText) {
+                    onChunk(newResponseText);
+                    sentResponseChars = responseText.length;
+                  }
+                } else {
+                  // First line is not an emotion, send all buffered content
+                  onChunk(bufferedResponse);
+                  emotionParsed = true; // Mark as parsed to avoid re-checking
+                }
               }
-
-              if (streamResponse.done) {
-                console.log('[OllamaService] Stream done, full response:', fullResponse.substring(0, 50));
-                onComplete(fullResponse);
-                return;
-              }
-            } catch (parseError) {
-              console.warn('[OllamaService] Failed to parse stream chunk:', line);
+            } else if (emotionParsed && detectedEmotion) {
+              // Emotion already parsed, send new chunk as response text
+              onChunk(chunk);
+            } else if (emotionParsed && !detectedEmotion) {
+              // No emotion detected, send chunk normally
+              onChunk(chunk);
+            } else {
+              // Still building up to first newline, don't send anything yet
+              // We'll send it once we determine if first line is emotion or not
             }
           }
         }
-      } finally {
-        reader.releaseLock();
       }
-
+      // Only send actual content to the user
+      
+      console.log(`[OllamaService] Thinking tokens: ${thinking}`);
+      
+      console.log(`[OllamaService] Stream complete, full response: ${fullResponse.substring(0, 50)}...`);
+      
+      const parsed = this.parseEmotionAndResponse(fullResponse);
+      
+      // Use detected emotion from streaming if available, otherwise use parsed emotion
+      const finalEmotion = detectedEmotion || parsed.emotion;
+      
+      // Add the suspect's response to history
+      this.addMessage('suspect', parsed.response);
+      onComplete(parsed.response, finalEmotion);
+      
     } catch (error) {
       console.error('[OllamaService] Streaming error:', error);
-      
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        onError("[Ollama not available - using fallback] I... I need a lawyer.");
-      } else {
-        onError(`[Error: ${error instanceof Error ? error.message : 'Unknown error'}] I don't understand the question.`);
-      }
+      throw error;
     }
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch('http://localhost:11434/api/version');
-      const isAvailable = response.ok;
-      console.log('[OllamaService] Connection test:', isAvailable ? 'SUCCESS' : 'FAILED');
-      return isAvailable;
+      // Use ollama library to list models - this tests connectivity
+      await ollama.list();
+      console.log('[OllamaService] Connection test: SUCCESS');
+      return true;
     } catch (error) {
       console.error('[OllamaService] Connection test failed:', error);
       return false;
     }
   }
 
-  private buildPrompt(userInput: string): string {
-    return `You are a suspect being interrogated by a detective. You have been accused of a crime but you may or may not be guilty.
+  private parseEmotionAndResponse(rawResponse: string): {response: string, emotion?: 'angry' | 'scared' | 'bored'} {
+    try {
+      // Split response into lines and trim whitespace
+      const lines = rawResponse.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      
+      if (lines.length >= 2) {
+        const emotionLine = lines[0].toLowerCase();
+        const responseLine = lines[1];
+        
+        // Check if first line is a valid emotion
+        if (emotionLine === 'angry' || emotionLine === 'scared' || emotionLine === 'bored') {
+          return {
+            emotion: emotionLine as 'angry' | 'scared' | 'bored',
+            response: responseLine
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('[OllamaService] Failed to parse emotion from response:', error);
+    }
+    
+    // Fallback: return raw response without emotion
+    return { response: rawResponse };
+  }
 
-Respond naturally and realistically to the detective's questions. You can be:
-- Nervous and evasive if you're hiding something
-- Cooperative but confused if you're innocent
-- Defensive if you feel attacked
-- Sometimes contradictory under pressure
-
-Keep responses conversational and under 100 words. Don't be overly dramatic.
-
-Detective: ${userInput}
-
-Suspect:`;
+  private buildMessages(userInput: string): ChatMessage[] {
+    const messages: ChatMessage[] = [];
+    
+    // Add system message with suspect profile
+    messages.push({
+      role: 'system',
+      content: suspectProfile
+    });
+    
+    // Add conversation history (excluding the current user input that was just added to history)
+    // We need to exclude the last investigator message since it's the current input we're processing
+    const historyToUse = this.conversationHistory.slice(0, -1);
+    if (historyToUse.length > 0) {
+      historyToUse.forEach(entry => {
+        const role = entry.speaker === 'investigator' ? 'user' : 'assistant';
+        messages.push({
+          role,
+          content: entry.text
+        });
+      });
+    }
+    
+    // Add current user input
+    messages.push({
+      role: 'user',
+      content: userInput
+    });
+    
+    return messages;
   }
 }

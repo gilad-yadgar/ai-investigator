@@ -1,0 +1,26 @@
+---
+globs: *.ts,*.tsx,*.js,*.jsx,src/**/*.ts,src/**/*.tsx,src/**/*.js,src/**/*.jsx
+description: Run build after code modifications to ensure compilation
+---
+
+# Build After Code Changes
+
+When modifying TypeScript, JavaScript, or related source files, always run a build command after completing the changes to ensure the code compiles properly.
+
+## Build Commands Available:
+- `npm run build-dev` - Development build (faster, recommended for testing compilation)
+- `npm run build-prod` - Production build (slower, optimized)
+
+## Required Actions:
+1. After completing any code modifications to source files
+2. Run `npm run build-dev` to test compilation
+3. If build fails, fix the compilation errors before considering the task complete
+4. Report build success or any compilation errors to the user
+
+This ensures code quality and prevents runtime errors due to TypeScript/JavaScript compilation issues.
+
+## Files this applies to:
+- All TypeScript files (*.ts, *.tsx) 
+- All JavaScript files (*.js, *.jsx)
+- Source files in the `src/` directory and subdirectories
+- Configuration files like [webpack.config.ts](mdc:webpack.config.ts) and [tsconfig.json](mdc:tsconfig.json)

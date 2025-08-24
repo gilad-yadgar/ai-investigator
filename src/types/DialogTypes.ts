@@ -3,10 +3,12 @@ export interface ConversationEntry {
   text: string;
   timestamp?: Date;
   isStreaming?: boolean;
+  emotion?: 'angry' | 'scared' | 'bored';
 }
 
 export interface OllamaResponse {
   response: string;
+  emotion?: 'angry' | 'scared' | 'bored';
   done?: boolean;
   error?: string;
 }
@@ -25,9 +27,14 @@ export interface OllamaStreamResponse {
   eval_duration?: number;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 export interface OllamaRequest {
   model: string;
-  prompt: string;
+  messages: ChatMessage[];
   stream: boolean;
   options?: {
     temperature?: number;

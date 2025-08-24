@@ -7,6 +7,7 @@ export class GameScene extends Phaser.Scene {
   private ollamaService!: OllamaService;
   private conversationDisplay!: ConversationDisplay;
   private conversationTurn: number = 0;
+  private characterSprite?: Phaser.GameObjects.Image;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -15,12 +16,11 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     // Preload background and character sprites
     this.load.image('background', 'assets/background.png');
-    // Load spritesheet with proper frame dimensions based on 1536x1024 total size
-    this.load.spritesheet('sprites1', 'assets/sprites1.png', { 
-      frameWidth: 410, 
-      frameHeight: 1000 
-    });
-    // this.load.image('sprites2', 'assets/sprites2.png');
+    
+    // Load emotion sprites
+    this.load.image('emo-angry', 'assets/emo/emo-angry.png');
+    this.load.image('emo-scared', 'assets/emo/emo-scared.png');
+    this.load.image('emo-bored', 'assets/emo/emo-bored.png');
   }
 
   init(data: DialogSceneData): void {
@@ -52,23 +52,22 @@ export class GameScene extends Phaser.Scene {
     const scale = Math.max(scaleX, scaleY); // Use max to cover the entire screen
     background.setScale(scale);
 
-    // Add character sprite with proper frame extraction
+    // Add character sprite using individual image files
     try {
-      // Try middle sprite (frame 4 in 6x4 grid would be middle of first row)
-      const characterSprite = this.add.sprite(
+      // Create character sprite with default texture (bored)
+      this.characterSprite = this.add.image(
         this.cameras.main.centerX,
         this.cameras.main.height - 180,
-        'sprites1',
-        2 // Try frame 2 (middle-ish of top row)
+        'emo-bored'
       );
       
       // Scale to appropriate size for visual novel
-      characterSprite.setScale(0.6);
-      characterSprite.setOrigin(0.5, 1); // Bottom center origin
+      this.characterSprite.setScale(0.6);
+      this.characterSprite.setOrigin(0.5, 1); // Bottom center origin
       
       // Debug: Log sprite info
-      console.log('[GameScene] Character sprite dimensions:', characterSprite.width, 'x', characterSprite.height);
-      console.log('[GameScene] Character sprite frame:', characterSprite.frame.name);
+      console.log('[GameScene] Character sprite dimensions:', this.characterSprite.width, 'x', this.characterSprite.height);
+      console.log('[GameScene] Character sprite texture:', this.characterSprite.texture.key);
       
     } catch (error) {
       console.log('[GameScene] Character sprite not available, using fallback:', error);
@@ -111,6 +110,7 @@ export class GameScene extends Phaser.Scene {
 
   private async handlePlayerInput(text: string): Promise<void> {
     if (!text.trim() || this.gameState.isGenerating) {
+      console.log('[GameScene] Player input is empty or already waiting for response');
       return;
     }
 
@@ -127,6 +127,7 @@ export class GameScene extends Phaser.Scene {
 
   private async getAIResponse(prompt: string): Promise<void> {
     if (this.gameState.isGenerating) {
+      console.log('[GameScene] Already waiting for response');
       return;
     }
 
@@ -152,13 +153,18 @@ export class GameScene extends Phaser.Scene {
           }
           this.conversationDisplay.updateStreamingText(chunk);
         },
-        (fullResponse: string) => {
+        (fullResponse: string, emotion?: 'angry' | 'scared' | 'bored') => {
           // Complete the streaming
           streamingEntry.text = fullResponse;
+          streamingEntry.emotion = emotion;
           streamingEntry.isStreaming = false;
           this.conversationDisplay.completeStreaming();
           this.gameState.isGenerating = false;
-          console.log(`[GameScene] Streaming complete: ${fullResponse.substring(0, 50)}...`);
+          
+          // Update character sprite based on emotion
+          this.updateCharacterEmotion(emotion);
+          
+          console.log(`[GameScene] Streaming complete: ${fullResponse.substring(0, 50)}... (emotion: ${emotion})`);
         },
         (error: string) => {
           // Handle error
@@ -187,6 +193,34 @@ export class GameScene extends Phaser.Scene {
     this.conversationDisplay.addEntry(entry);
 
     console.log(`[GameScene] Added conversation entry: ${speaker}: ${text.substring(0, 50)}...`);
+  }
+
+  private updateCharacterEmotion(emotion?: 'angry' | 'scared' | 'bored'): void {
+    if (!this.characterSprite || !emotion) {
+      console.log('[GameScene] No emotion or character sprite to update');
+      return;
+    }
+
+    const emotionTextureKey = `emo-${emotion}`;
+    console.log(`[GameScene] Updating character emotion to: ${emotion}`);
+    
+    try {
+      // Switch the sprite texture to the emotion sprite
+      this.characterSprite.setTexture(emotionTextureKey);
+      
+      // Optional: Add a subtle tween animation when emotion changes
+      this.tweens.add({
+        targets: this.characterSprite,
+        scaleX: 0.58,
+        scaleY: 0.58,
+        duration: 100,
+        yoyo: true,
+        ease: 'Power2'
+      });
+      
+    } catch (error) {
+      console.warn(`[GameScene] Failed to update emotion sprite to ${emotionTextureKey}:`, error);
+    }
   }
 
   private showMainMenu(): void {

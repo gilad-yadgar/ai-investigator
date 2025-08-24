@@ -101,9 +101,24 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
   - `updateStreamingText()` creates message text only when first chunk arrives
   - Maintains streaming behavior for subsequent words with typing cursor
 
+### 9. Dynamic Emotion System
+- **Status**: ✅ **COMPLETED**
+- **Requirements**:
+  - AI determines emotional state for each response (angry, scared, bored)
+  - Character sprite changes to match emotional state
+  - Smooth sprite transitions with subtle animation
+  - Emotion data stored in conversation history
+  - Structured emotion format ensures reliable parsing
+- **Implementation**:
+  - Updated system prompt to request emotion tags in responses
+  - `OllamaService.parseEmotionAndResponse()` extracts emotion from AI output
+  - `GameScene.updateCharacterEmotion()` switches sprite textures
+  - Three emotion sprites: `emo-angry.png`, `emo-scared.png`, `emo-bored.png`
+  - Animation tween on emotion changes for visual feedback
+
 ## Technical Requirements
 
-### 9. Architecture & Code Quality
+### 10. Architecture & Code Quality
 - **Status**: ✅ **COMPLETED**
 - **Requirements**:
   - TypeScript with full type safety
@@ -116,7 +131,7 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
   - Modular classes: `GameScene`, `ConversationDisplay`, `OllamaService`
   - Webpack build system with development server
 
-### 10. Performance & Responsiveness
+### 11. Performance & Responsiveness
 - **Status**: ✅ **COMPLETED**
 - **Requirements**:
   - Smooth 60fps gameplay
@@ -128,7 +143,7 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
   - Non-blocking streaming with async/await
   - Efficient DOM manipulation for UI updates
 
-### 11. Cross-Platform Compatibility
+### 12. Cross-Platform Compatibility
 - **Status**: ✅ **COMPLETED**
 - **Requirements**:
   - Works in modern browsers
@@ -143,7 +158,7 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
 
 ## Future Enhancement Opportunities
 
-### 12. Advanced Features (Not Implemented)
+### 13. Advanced Features (Not Implemented)
 - **Status**: 🔄 **PLANNED**
 - **Requirements**:
   - Save/load conversation state
@@ -154,7 +169,7 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
   - Investigation evidence system
   - Case management system
 
-### 13. Gameplay Mechanics (Not Implemented)
+### 14. Gameplay Mechanics (Not Implemented)
 - **Status**: 🔄 **PLANNED**
 - **Requirements**:
   - Suspect memory/consistency tracking
@@ -164,7 +179,7 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
   - Success/failure conditions
   - Multiple case scenarios
 
-### 14. UI/UX Improvements (Not Implemented)
+### 15. UI/UX Improvements (Not Implemented)
 - **Status**: 🔄 **PLANNED**
 - **Requirements**:
   - Menu system for game options
@@ -178,9 +193,11 @@ A visual novel-style detective game built with Phaser 3 and TypeScript, featurin
 
 1. **Game Start**: Suspect asks "Why am I here? What do you want from me?"
 2. **User Input**: Player types response in inline input field
-3. **AI Response**: Suspect responds with streaming text and typing cursor
-4. **Input Ready**: Input field automatically appears when response completes
-5. **Continue**: Natural back-and-forth conversation continues
+3. **AI Processing**: AI determines both response text and emotional state
+4. **Streaming Response**: Suspect responds with streaming text and typing cursor
+5. **Emotion Change**: Character sprite updates to match emotional state (angry/scared/bored)
+6. **Input Ready**: Input field automatically appears when response completes
+7. **Continue**: Natural back-and-forth conversation continues with dynamic emotions
 
 ## Technical Stack
 
