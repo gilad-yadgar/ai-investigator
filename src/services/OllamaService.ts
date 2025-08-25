@@ -3,7 +3,7 @@ import { OllamaRequest, OllamaResponse, OllamaStreamResponse, ConversationEntry,
 import { suspectProfile } from '../characters/suspect';
 
 export class OllamaService {
-  private readonly model: string = 'gpt-oss:20b';
+  private readonly model: string = 'qwen3:8b';
   private conversationHistory: ConversationEntry[] = [];
 
   constructor() {
@@ -45,41 +45,6 @@ export class OllamaService {
     return this.conversationHistory.length;
   }
 
-  async generateResponse(prompt: string): Promise<{response: string, emotion?: 'angry' | 'scared' | 'bored'}> {
-    console.log(`[OllamaService] Generating non-streaming response for: ${prompt.substring(0, 50)}...`);
-
-    // Add the user's message to history
-    this.addMessage('investigator', prompt);
-
-    const messages = this.buildMessages(prompt);
-
-    try {
-      console.log('[OllamaService] Making request to Ollama...');
-      
-      const response = await ollama.chat({
-        model: this.model,
-        messages: messages,
-        stream: false,
-        options: {
-          temperature: 0.7,
-          num_predict: 300
-        }
-      });
-
-      const fullResponse = response.message.content || '';
-      console.log(`[OllamaService] Response received: ${fullResponse}`);
-      
-      const parsed = this.parseEmotionAndResponse(fullResponse);
-      
-      // Add the suspect's response to history
-      this.addMessage('suspect', parsed.response);
-      return parsed;
-      
-    } catch (error) {
-      console.error('[OllamaService] Non-streaming error:', error);
-      throw error;
-    }
-  }
 
   async generateStreamingResponse(
     prompt: string, 
@@ -109,7 +74,7 @@ export class OllamaService {
         stream: true,
         options: {
           temperature: 0.7,
-          num_predict: 250 // equivalent to max_tokens
+          num_predict: 500 // equivalent to max_tokens
         }
       });
 

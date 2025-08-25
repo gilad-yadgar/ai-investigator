@@ -15,7 +15,7 @@ describe('OllamaService', () => {
     jest.clearAllMocks();
   });
 
-  describe('generateResponse', () => {
+  describe('generateStreamingResponse', () => {
     it('should send message and receive non-streaming response', async () => {
       // Arrange
       const testPrompt = 'What did you do last night?';
@@ -32,7 +32,7 @@ describe('OllamaService', () => {
       } as any);
 
       // Act
-      const result = await ollamaService.generateResponse(testPrompt);
+      const result = await ollamaService.generateStreamingResponse(testPrompt, jest.fn(), jest.fn(), jest.fn());
 
       // Assert
       expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -91,7 +91,7 @@ describe('OllamaService', () => {
       } as any);
 
       // Act & Assert
-      await expect(ollamaService.generateResponse(testPrompt)).rejects.toThrow('Bad response status');
+      await expect(ollamaService.generateStreamingResponse(testPrompt, jest.fn(), jest.fn(), jest.fn())).rejects.toThrow('Bad response status');
       
       // Check that user message was still added to history
       const history = ollamaService.getHistory();
@@ -108,7 +108,7 @@ describe('OllamaService', () => {
       mockFetch.mockRejectedValueOnce(networkError);
 
       // Act & Assert
-      await expect(ollamaService.generateResponse(testPrompt)).rejects.toThrow('Network error');
+      await expect(ollamaService.generateStreamingResponse(testPrompt, jest.fn(), jest.fn(), jest.fn())).rejects.toThrow('Network error');
     });
   });
 
@@ -306,8 +306,8 @@ describe('OllamaService', () => {
         } as any);
 
       // Act
-      await ollamaService.generateResponse('First question');
-      await ollamaService.generateResponse('Second question');
+      await ollamaService.generateStreamingResponse('First question', jest.fn(), jest.fn(), jest.fn());
+      await ollamaService.generateStreamingResponse('Second question', jest.fn(), jest.fn(), jest.fn());
 
       // Assert
       const history = ollamaService.getHistory();
@@ -337,8 +337,8 @@ describe('OllamaService', () => {
       } as any);
 
       // Act
-      await ollamaService.generateResponse('First question');
-      await ollamaService.generateResponse('Second question');
+      await ollamaService.generateStreamingResponse('First question', jest.fn(), jest.fn(), jest.fn());
+      await ollamaService.generateStreamingResponse('Second question', jest.fn(), jest.fn(), jest.fn());
 
       // Assert - Check the second request includes history
       expect(mockFetch).toHaveBeenCalledTimes(2);
