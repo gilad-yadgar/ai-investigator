@@ -3,7 +3,7 @@ import { OllamaRequest, OllamaResponse, OllamaStreamResponse, ConversationEntry,
 import { suspectProfile } from '../characters/suspect';
 
 export class OllamaService {
-  private readonly model: string = 'qwen3:8b';
+  private readonly model: string = 'gemma3:4b';
   private conversationHistory: ConversationEntry[] = [];
 
   constructor() {
@@ -72,6 +72,7 @@ export class OllamaService {
         model: this.model,
         messages: messages,
         stream: true,
+        think: false,
         options: {
           temperature: 0.7,
           num_predict: 500 // equivalent to max_tokens
